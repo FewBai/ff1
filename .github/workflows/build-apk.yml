@@ -80,7 +80,18 @@ jobs:
 
           echo "Android project root: $PROJECT"
           cp -a "$PROJECT"/. android-project/
+      - name: Fix duplicate AppTheme resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          STYLES="android-project/app/src/main/res/values/styles.xml"
+          THEMES="android-project/app/src/main/res/values/themes.xml"
 
+          if [ -f "$STYLES" ] && [ -f "$THEMES" ]; then
+            echo "Duplicate AppTheme resources detected."
+            echo "Keeping themes.xml and removing legacy styles.xml."
+            rm -f "$STYLES"
+          fi
       - name: Install Gradle 8.13
         run: |
           curl -fsSL \
