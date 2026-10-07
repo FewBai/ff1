@@ -29,18 +29,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          ZIP_FILE="$(find . -maxdepth 3 -type f \
-            -iname '*.zip' -o -iname '*.ZIP' \
-            | grep -E 'FF1|Android|Codemagic' \
+          ZIP_FILE="$(find . -maxdepth 5 -type f -iname '*.zip' -print \
+            | grep -Ei 'FF1|Android|Codemagic' \
             | head -n 1 || true)"
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: FF1 Android ZIP not found."
             echo
             echo "Available ZIP files:"
-            find . -type f \
-              -iname '*.zip' -o -iname '*.ZIP' \
-              -print
+            find . -type f -iname '*.zip' -print
             exit 1
           fi
 
@@ -67,8 +64,16 @@ jobs:
           set -euo pipefail
 
           SETTINGS_FILE="$(find ff1_android_project \
-            -name settings.gradle -o -name settings.gradle.kts \
+            -type f \
+            -name 'settings.gradle.kts' \
             -print -quit || true)"
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            SETTINGS_FILE="$(find ff1_android_project \
+              -type f \
+              -name 'settings.gradle' \
+              -print -quit || true)"
+          fi
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: Android Gradle project not found."
