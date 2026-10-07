@@ -1,4 +1,4 @@
-name: FF1 Android Step 1
+name: FF1 Android Step 2
 
 on:
   push:
@@ -6,66 +6,156 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  android-environment:
-    name: Checkout + Java 17 + Android SDK
+  prepare-project:
+    name: ZIP Discovery + Android Project Inspection
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Check Android SDK
+      - name: Show repository files
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== Java ====="
-          java -version
+          echo "===== Repository root ====="
+          pwd
 
           echo
-          echo "===== Android SDK ====="
+          echo "===== Files ====="
+          find . -maxdepth 2 -type f | sort | head -200
 
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+      - name: Find FF1 Android ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          echo "ANDROID SDK: $SDK"
+          echo "===== Searching for Android ZIP ====="
 
-          if [ ! -d "$SDK" ]; then
-            echo "ERROR: Android SDK not found"
+          ZIP_FILE="$(find . -maxdepth 3 -type f \
+            \( -iname '*.zip' -o -iname '*.ZIP' \) \
+            | grep -E 'FF1|Android|Codemagic' \
+            | head -n 1 || true)"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: FF1 Android ZIP not found."
+            echo
+            echo "Available ZIP files:"
+            find . -type f \( -iname '*.zip' -o -iname '*.ZIP' \) -print || true
             exit 1
           fi
 
-          if command -v sdkmanager >/dev/null 2>&1; then
-            echo "sdkmanager:"
-            sdkmanager --version
-          else
-            SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          echo "ZIP discovery: OK"
+          echo "ZIP_FILE=$ZIP_FILE"
 
-            if [ -x "$SDKMANAGER" ]; then
-              "$SDKMANAGER" --version
-            else
-              echo "ERROR: sdkmanager not found"
-              exit 1
-            fi
-          fi
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+
+      - name: Inspect ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== ZIP information ====="
+          ls -lh "$ZIP_FILE"
 
           echo
-          echo "===== SDK directory ====="
-          ls -la "$SDK" | head -30
+          echo "===== ZIP contents ====="
+          unzip -l "$ZIP_FILE" | head -200
 
-      - name: Step 1 success
+          echo
+          echo "ZIP inspection: OK"
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf ff1_android_project
+          mkdir -p ff1_android_project
+
+          unzip -q "$ZIP_FILE" -d ff1_android_project
+
+          echo "ZIP extraction: OK"
+
+          echo
+          echo "===== Extracted files ====="
+          find ff1_android_project -maxdepth 4 -type f | sort | head -300
+
+      - name: Detect Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== Android project detection ====="
+
+          PROJECT_ROOT=""
+
+          if find ff1_android_project -name settings.gradle -o -name settings.gradle.kts | grep -q .; then
+            PROJECT_ROOT="$(find ff1_android_project \
+              \( -name settings.gradle -o -name settings.gradle.kts \) \
+              -print -quit | xargs dirname)"
+          fi
+
+          if [ -z "$PROJECT_ROOT" ]; then
+            echo "ERROR: Android Gradle project was not detected."
+            echo
+            echo "Searching for Gradle files:"
+            find ff1_android_project \
+              \( -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts \) \
+              -print
+            exit 1
+          fi
+
+          echo "Android project detection: OK"
+          echo "PROJECT_ROOT=$PROJECT_ROOT"
+
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+
+      - name: Inspect Android project structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== Android project root ====="
+          echo "$PROJECT_ROOT"
+
+          cd "$PROJECT_ROOT"
+
+          echo
+          echo "===== Project files ====="
+          find . -maxdepth 3 -type f | sort | head -300
+
+          echo
+          echo "===== Gradle files ====="
+          find . \
+            \( -name settings.gradle \
+            -o -name settings.gradle.kts \
+            -o -name build.gradle \
+            -o -name build.gradle.kts \
+            -o -name gradle.properties \
+            -o -name gradlew \) \
+            -print
+
+          echo
+          echo "===== Android manifests ====="
+          find . -name AndroidManifest.xml -print
+
+          echo
+          echo "===== Project inspection: OK"
+
+      - name: Step 2 success
         shell: bash
         run: |
           echo "========================================"
-          echo "FF1 ANDROID STEP 1 SUCCESS"
+          echo "FF1 ANDROID STEP 2 SUCCESS"
           echo "========================================"
-          echo "Checkout: OK"
-          echo "Java 17: OK"
-          echo "Android SDK: OK"
+          echo "ZIP discovery: OK"
+          echo "ZIP extraction: OK"
+          echo "Android project detection: OK"
+          echo "Project inspection: OK"
           echo "========================================"
