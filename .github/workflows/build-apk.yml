@@ -82,24 +82,16 @@ jobs:
 
           SETTINGS_FILE=""
 
-          SETTINGS_FILE="$(find ff1_android_project \
-            -type f \
-            -name 'settings.gradle.kts' \
-            -print \
-            -quit || true)"
+          SETTINGS_FILE="$(find ff1_android_project -type f -name 'settings.gradle.kts' -print -quit || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
-            SETTINGS_FILE="$(find ff1_android_project \
-              -type f \
-              -name 'settings.gradle' \
-              -print \
-              -quit || true)"
+            SETTINGS_FILE="$(find ff1_android_project -type f -name 'settings.gradle' -print -quit || true)"
           fi
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: Android Gradle project not found."
             echo
-            echo "Files found in extracted project:"
+            echo "Files found:"
             find ff1_android_project -maxdepth 4 -type f -print | head -200
             exit 1
           fi
@@ -167,3 +159,65 @@ jobs:
 
       - name: Find generated APK
         shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "Searching for generated APK"
+          echo "========================================"
+
+          APK_FILE_FOUND=""
+
+          while IFS= read -r file; do
+            APK_FILE_FOUND="$file"
+            break
+          done < <(find "$PROJECT_ROOT" -type f -name '*.apk' -print)
+
+          if [ -z "$APK_FILE_FOUND" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
+          echo "Generated APK:"
+          echo "$APK_FILE_FOUND"
+
+          mkdir -p "$GITHUB_WORKSPACE/output"
+
+          cp "$APK_FILE_FOUND" \
+            "$GITHUB_WORKSPACE/output/ff1-debug.apk"
+
+          echo "APK_FILE=$GITHUB_WORKSPACE/output/ff1-debug.apk" >> "$GITHUB_ENV"
+
+          echo "APK: GENERATED"
+
+      - name: Show APK information
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "APK information"
+          echo "========================================"
+
+          ls -lh "$APK_FILE"
+
+          file "$APK_FILE" || true
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ff1-debug-apk
+          path: output/ff1-debug.apk
+          if-no-files-found: error
+
+      - name: Step 4 success
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "FF1 ANDROID STEP 4 SUCCESS"
+          echo "========================================"
+          echo "Gradle 8.13: OK"
+          echo "assembleDebug: SUCCESS"
+          echo "APK: GENERATED"
+          echo "Artifact: UPLOADED"
+          echo "========================================"
