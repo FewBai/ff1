@@ -1,4 +1,4 @@
-name: FF1 Android Step 3
+name: FF1 Android Step 3.1
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  gradle-check:
-    name: Gradle Environment + Tasks Check
+  gradle-bootstrap:
+    name: Bootstrap Gradle + Verify Project
     runs-on: ubuntu-24.04
 
     steps:
@@ -36,6 +36,7 @@ jobs:
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: FF1 Android ZIP not found."
+            find . -type f -name "*.zip" -print
             exit 1
           fi
 
@@ -55,54 +56,67 @@ jobs:
 
           echo "ZIP extraction: OK"
 
-      - name: Detect Gradle project
+      - name: Detect project root
         shell: bash
         run: |
           set -euo pipefail
-
-          PROJECT_ROOT=""
 
           SETTINGS_FILE="$(find ff1_android_project \
             \( -name settings.gradle -o -name settings.gradle.kts \) \
             -print -quit || true)"
 
-          if [ -n "$SETTINGS_FILE" ]; then
-            PROJECT_ROOT="$(dirname "$SETTINGS_FILE")"
-          fi
-
-          if [ -z "$PROJECT_ROOT" ]; then
-            echo "ERROR: Gradle project not found."
-            find ff1_android_project -maxdepth 5 \
-              \( -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts \) \
-              -print
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle(.kts) not found."
             exit 1
           fi
 
+          PROJECT_ROOT="$(dirname "$SETTINGS_FILE")"
+
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
-          echo "Gradle project detection: OK"
-          echo "PROJECT_ROOT=$PROJECT_ROOT"
+          echo "Project root:"
+          echo "$PROJECT_ROOT"
 
-      - name: Check Gradle wrapper
+      - name: Inspect Gradle configuration
         shell: bash
         run: |
           set -euo pipefail
 
           cd "$PROJECT_ROOT"
 
-          if [ ! -f "./gradlew" ]; then
-            echo "ERROR: gradlew not found."
-            echo
-            echo "Project root contents:"
-            ls -la
-            exit 1
+          echo "===== settings.gradle.kts ====="
+          if [ -f settings.gradle.kts ]; then
+            cat settings.gradle.kts
+          elif [ -f settings.gradle ]; then
+            cat settings.gradle
           fi
 
-          chmod +x ./gradlew
+          echo
+          echo "===== root build file ====="
+          if [ -f build.gradle.kts ]; then
+            cat build.gradle.kts
+          elif [ -f build.gradle ]; then
+            cat build.gradle
+          fi
 
-          echo "Gradle wrapper: OK"
-          echo "Gradle wrapper version:"
-          ./gradlew --version
+          echo
+          echo "===== gradle.properties ====="
+          if [ -f gradle.properties ]; then
+            cat gradle.properties
+          fi
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Verify Gradle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== Gradle ====="
+          gradle --version
 
       - name: Run Gradle tasks
         shell: bash
@@ -115,18 +129,15 @@ jobs:
           echo "Running Gradle tasks"
           echo "========================================"
 
-          ./gradlew tasks --no-daemon --stacktrace
+          gradle tasks --no-daemon --stacktrace
 
-      - name: Step 3 success
+      - name: Step 3.1 success
         shell: bash
         run: |
           echo "========================================"
-          echo "FF1 ANDROID STEP 3 SUCCESS"
+          echo "FF1 ANDROID STEP 3.1 SUCCESS"
           echo "========================================"
-          echo "Java 17: OK"
-          echo "ZIP discovery: OK"
-          echo "ZIP extraction: OK"
-          echo "Gradle project: OK"
-          echo "Gradle wrapper: OK"
+          echo "Gradle installed: OK"
+          echo "Android project detected: OK"
           echo "gradle tasks: OK"
           echo "========================================"
