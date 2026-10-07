@@ -1,4 +1,4 @@
-name: FF1 Android Step 3.1
+name: FF1 Android Step 4
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  gradle-bootstrap:
-    name: Bootstrap Gradle + Verify Project
+  build-apk:
+    name: Build FF1 Debug APK
     runs-on: ubuntu-24.04
 
     steps:
@@ -24,25 +24,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Find Android ZIP
+      - name: Find FF1 Android ZIP
         shell: bash
         run: |
           set -euo pipefail
 
           ZIP_FILE="$(find . -maxdepth 3 -type f \
-            \( -iname '*.zip' -o -iname '*.ZIP' \) \
+            -iname '*.zip' -o -iname '*.ZIP' \
             | grep -E 'FF1|Android|Codemagic' \
             | head -n 1 || true)"
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: FF1 Android ZIP not found."
-            find . -type f -name "*.zip" -print
+            echo
+            echo "Available ZIP files:"
+            find . -type f \
+              -iname '*.zip' -o -iname '*.ZIP' \
+              -print
             exit 1
           fi
 
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+
           echo "ZIP discovery: OK"
-          echo "Using: $ZIP_FILE"
+          echo "Using ZIP: $ZIP_FILE"
 
       - name: Extract Android project
         shell: bash
@@ -56,17 +61,17 @@ jobs:
 
           echo "ZIP extraction: OK"
 
-      - name: Detect project root
+      - name: Detect Android project
         shell: bash
         run: |
           set -euo pipefail
 
           SETTINGS_FILE="$(find ff1_android_project \
-            \( -name settings.gradle -o -name settings.gradle.kts \) \
+            -name settings.gradle -o -name settings.gradle.kts \
             -print -quit || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle(.kts) not found."
+            echo "ERROR: Android Gradle project not found."
             exit 1
           fi
 
@@ -74,38 +79,10 @@ jobs:
 
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
-          echo "Project root:"
-          echo "$PROJECT_ROOT"
+          echo "Android project detected: OK"
+          echo "PROJECT_ROOT=$PROJECT_ROOT"
 
-      - name: Inspect Gradle configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd "$PROJECT_ROOT"
-
-          echo "===== settings.gradle.kts ====="
-          if [ -f settings.gradle.kts ]; then
-            cat settings.gradle.kts
-          elif [ -f settings.gradle ]; then
-            cat settings.gradle
-          fi
-
-          echo
-          echo "===== root build file ====="
-          if [ -f build.gradle.kts ]; then
-            cat build.gradle.kts
-          elif [ -f build.gradle ]; then
-            cat build.gradle
-          fi
-
-          echo
-          echo "===== gradle.properties ====="
-          if [ -f gradle.properties ]; then
-            cat gradle.properties
-          fi
-
-      - name: Install Gradle
+      - name: Install Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
@@ -115,29 +92,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "===== Gradle ====="
           gradle --version
 
-      - name: Run Gradle tasks
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd "$PROJECT_ROOT"
-
-          echo "========================================"
-          echo "Running Gradle tasks"
-          echo "========================================"
-
-          gradle tasks --no-daemon --stacktrace
-
-      - name: Step 3.1 success
-        shell: bash
-        run: |
-          echo "========================================"
-          echo "FF1 ANDROID STEP 3.1 SUCCESS"
-          echo "========================================"
-          echo "Gradle installed: OK"
-          echo "Android project detected: OK"
-          echo "gradle tasks: OK"
-          echo "========================================"
+          echo "Gradle 8.13
